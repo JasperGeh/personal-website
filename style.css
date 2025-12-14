@@ -144,14 +144,14 @@ p {
 }
 
 .tagline {
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     color: var(--color-text-muted);
     margin-bottom: var(--space-xs);
     animation: fadeInUp 0.6s ease-out 0.1s both;
 }
 
 .pondering {
-    font-size: 1rem;
+    font-size: 1.1rem;
     color: var(--color-text-muted);
     margin-bottom: 0;
     animation: fadeInUp 0.6s ease-out 0.15s both;
@@ -187,6 +187,8 @@ p {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-md) var(--space-lg);
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
     padding: var(--space-md) 0;
     margin-bottom: var(--space-xl);
     border-top: 1px solid var(--color-border);
@@ -220,19 +222,28 @@ p {
 }
 
 /* ============================================
-   Sections
+   Sections (Tab-style navigation)
    ============================================ */
 
 .section {
+    display: none;
     margin-bottom: var(--space-xl);
-    animation: fadeInUp 0.6s ease-out both;
+    animation: fadeIn 0.3s ease-out;
 }
 
-.section:nth-child(1) { animation-delay: 0.3s; }
-.section:nth-child(2) { animation-delay: 0.4s; }
-.section:nth-child(3) { animation-delay: 0.5s; }
-.section:nth-child(4) { animation-delay: 0.6s; }
-.section:nth-child(5) { animation-delay: 0.7s; }
+/* Show active section */
+.section.active {
+    display: block;
+}
+
+/* Active nav link styling */
+.nav a.active {
+    color: var(--color-accent);
+}
+
+.nav a.active::after {
+    width: 100%;
+}
 
 /* About Section */
 .about-content p:last-child {

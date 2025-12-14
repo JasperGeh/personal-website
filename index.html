@@ -43,7 +43,6 @@
         <main>
             <!-- Bio / About Section -->
             <section id="about" class="section">
-                <h2>About</h2>
                 <div class="about-content">
                     <p>
                         I am currently a Senior Research Scientist at <a href="https://securebio.org">SecureBio</a>. My research focuses on AI evaluations and biosecurity implications in the AI and biotechnology risks team. Previously, I was working on far-UVC air disinfection as a Research Fellow at <a href="https://convergentresearch.org">Convergent Research</a>, and completed my virology PhD at the <a href="https://www.mhh.de/virologie">Hannover Medical School</a>.
@@ -56,7 +55,6 @@
 
             <!-- Publications Section -->
             <section id="publications" class="section">
-                <h2>Publications</h2>
                 <p>The up-to-date list can be found on <a href="https://scholar.google.de/citations?hl=de&user=oIxfYg0AAAAJ" target="_blank">my Google Scholar profile</a>.</p>
                 <ul class="publication-list">
                     <li class="publication-item">
@@ -255,7 +253,6 @@
 
             <!-- Projects Section -->
             <section id="projects" class="section">
-                <h2>Projects</h2>
                 <p>Incomplete list of other random projects I pursued outside of work.</p>
                 <ul class="project-list">
                     <li class="project-item">
@@ -275,7 +272,6 @@
 
             <!-- Blog / Writing Section -->
             <section id="writing" class="section">
-                <h2>Writing</h2>
                 <p>Non-publication writing that can be found online.</p>
                 <ul class="writing-list">
                     <li class="writing-item">
@@ -325,8 +321,7 @@
 
             <!-- Contact Section -->
             <section id="contact" class="section">
-                <h2>Contact</h2>
-                <p class="contact-intro">Feel free to reach out — I'd love to hear from you.</p>
+                <p>Feel free to reach out — I'd love to hear from you.</p>
                 <div class="social-links">
                     <a href="mailto:jasper@🧬.kz" class="social-link">
                         <svg class="social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
@@ -350,7 +345,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>&copy; 2025 Jasper Götting with help from Claude Opus 4.5</p>
+            <p>&copy; 2025 Jasper Götting</p>
         </footer>
     </div>
 
@@ -360,11 +355,13 @@
             "GMing omnicidal elves.",
             "pondering red-line capabilities.",
             "wishing for biohardened cities.",
+            "an ELBI fellow.",
             "predicting experimental outcomes.",
             "considering getting a dog.",
             "3D printing.",
             "hoarding stickers.",
             "re-reading Aposimz.",
+            "a Foresight fellow.",
             "wishing all sentient beings well.",
             "exploring weird music.",
             "not missing pipetting.",
@@ -387,6 +384,40 @@
         
         rotate();
         setInterval(rotate, 3000);
+
+        // Tab navigation - show/hide sections
+        const navLinks = document.querySelectorAll('.nav a[href^="#"]');
+        const sections = document.querySelectorAll('.section');
+        
+        function showSection(hash) {
+            const targetId = hash.replace('#', '') || 'about';
+            
+            // Update sections
+            sections.forEach(section => {
+                section.classList.toggle('active', section.id === targetId);
+            });
+            
+            // Update nav links
+            navLinks.forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + targetId);
+            });
+        }
+        
+        // Handle nav clicks (only for internal links)
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const hash = link.getAttribute('href');
+                history.pushState(null, '', hash);
+                showSection(hash);
+            });
+        });
+        
+        // Handle back/forward navigation
+        window.addEventListener('popstate', () => showSection(window.location.hash));
+        
+        // Initial load
+        showSection(window.location.hash);
     </script>
 </body>
 </html>
