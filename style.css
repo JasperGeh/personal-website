@@ -405,6 +405,123 @@ p {
 }
 
 /* ============================================
+   Photography Section
+   ============================================ */
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md);
+}
+
+.photo-card {
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.photo-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.photo-card img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    display: block;
+    transition: transform var(--transition-base);
+}
+
+.photo-card:hover img {
+    transform: scale(1.03);
+}
+
+/* Lightbox */
+.lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.lightbox.active {
+    display: flex;
+}
+
+.lightbox-content {
+    max-width: 90vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.lightbox-img {
+    max-width: 100%;
+    max-height: 75vh;
+    object-fit: contain;
+}
+
+.lightbox-caption {
+    margin-top: var(--space-md);
+    text-align: center;
+    color: #fdf6e3;
+}
+
+.lightbox-title {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    display: block;
+}
+
+.lightbox-date {
+    font-size: 0.875rem;
+    color: #93a1a1;
+    display: block;
+    margin-top: var(--space-xs);
+}
+
+.lightbox-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-md);
+    width: 100%;
+}
+
+.lightbox-close,
+.lightbox-prev,
+.lightbox-next {
+    background: none;
+    border: none;
+    color: #fdf6e3;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: var(--space-sm);
+    transition: opacity var(--transition-fast);
+    opacity: 0.7;
+}
+
+.lightbox-close:hover,
+.lightbox-prev:hover,
+.lightbox-next:hover {
+    opacity: 1;
+}
+
+.lightbox-close {
+    position: fixed;
+    top: var(--space-md);
+    right: var(--space-md);
+    font-size: 2rem;
+    z-index: 1001;
+}
+
+/* ============================================
    Contact Section
    ============================================ */
 
@@ -541,10 +658,15 @@ p {
     .social-links {
         flex-direction: column;
     }
-    
+
     .social-link {
         justify-content: center;
     }
+
+    .photo-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
 }
 
 /* ============================================
@@ -580,6 +702,10 @@ p {
     
     .section {
         break-inside: avoid;
+    }
+
+    .lightbox {
+        display: none !important;
     }
 }
 

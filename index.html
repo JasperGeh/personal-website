@@ -35,6 +35,7 @@
             <a href="#about">About</a>
             <a href="#publications">Publications</a>
             <a href="#outputs">Other Outputs</a>
+            <a href="#photography">Photography</a>
             <a href="assets/jasper_goetting_website_cv_2025.pdf" target="_blank">CV</a>
             <a href="#contact">Contact</a>
         </nav>
@@ -247,6 +248,22 @@
                     <br>
             </section>
 
+            <!-- Photography Section -->
+            <section id="photography" class="section">
+                <p>Some of the photos I've taken—all are SOOC from a Fuji X-E5. </p>
+                <div class="photo-grid">
+                    <div class="photo-card" data-index="0" data-date="Mar 2026">
+                        <img src="assets/photos/Johnny.jpg" alt="Johnny" loading="lazy">
+                    </div>
+                    <div class="photo-card" data-index="1" data-date="Feb 2026">
+                        <img src="assets/photos/Kuh Alpbachtal.jpg" alt="Kuh Alpbachtal" loading="lazy">
+                    </div>
+                    <div class="photo-card" data-index="2" data-date="Jan 2026">
+                        <img src="assets/photos/wintgenstein.jpg" alt="Wintgenstein" loading="lazy">
+                    </div>
+                </div>
+            </section>
+
             <!-- Contact Section -->
             <section id="contact" class="section">
                 <p>Feel free to reach out — I'd love to hear from you.</p>
@@ -270,6 +287,22 @@
                 </div>
             </section>
         </main>
+
+        <!-- Lightbox -->
+        <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+            <button class="lightbox-close" aria-label="Close">&times;</button>
+            <div class="lightbox-content">
+                <img class="lightbox-img" src="" alt="">
+                <div class="lightbox-footer">
+                    <button class="lightbox-prev" aria-label="Previous photo">&#8592;</button>
+                    <div class="lightbox-caption">
+                        <span class="lightbox-title"></span>
+                        <span class="lightbox-date"></span>
+                    </div>
+                    <button class="lightbox-next" aria-label="Next photo">&#8594;</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Footer -->
         <footer class="footer">
@@ -349,6 +382,57 @@
         
         // Initial load
         showSection(window.location.hash);
+
+        // Photography lightbox
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = lightbox.querySelector('.lightbox-img');
+        const lightboxTitle = lightbox.querySelector('.lightbox-title');
+        const lightboxDate = lightbox.querySelector('.lightbox-date');
+        const photoCards = document.querySelectorAll('.photo-card');
+        let currentPhotoIndex = 0;
+
+        function openLightbox(index) {
+            currentPhotoIndex = index;
+            const card = photoCards[index];
+            const img = card.querySelector('img');
+            lightboxImg.src = img.src;
+            lightboxImg.alt = img.alt;
+            lightboxTitle.textContent = img.alt;
+            lightboxDate.textContent = card.dataset.date;
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function navigateLightbox(direction) {
+            const newIndex = currentPhotoIndex + direction;
+            if (newIndex >= 0 && newIndex < photoCards.length) {
+                openLightbox(newIndex);
+            }
+        }
+
+        photoCards.forEach((card, index) => {
+            card.addEventListener('click', () => openLightbox(index));
+        });
+
+        lightbox.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+        lightbox.querySelector('.lightbox-prev').addEventListener('click', () => navigateLightbox(-1));
+        lightbox.querySelector('.lightbox-next').addEventListener('click', () => navigateLightbox(1));
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) closeLightbox();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!lightbox.classList.contains('active')) return;
+            if (e.key === 'Escape') closeLightbox();
+            if (e.key === 'ArrowLeft') navigateLightbox(-1);
+            if (e.key === 'ArrowRight') navigateLightbox(1);
+        });
     </script>
 </body>
 </html>
