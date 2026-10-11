@@ -866,14 +866,14 @@
         active = null;
         if (mode !== 'none') {
             active = mount(mode);
-            if (!active && mode !== 'clouds') {
-                // e.g. no float render targets for agar: hide that option
+            if (!active) {
+                // This browser can't run it (e.g. no WebGL2): hide that option and
+                // fall back to the plain-canvas network, or to no background
                 switcher?.querySelector(`[data-bg="${mode}"]`)?.setAttribute('hidden', '');
-                return setMode('clouds', { remember: false });
+                return setMode(mode === 'network' ? 'none' : 'network', { remember: false });
             }
-            if (active) active.mode = mode;
+            active.mode = mode;
         }
-        if (!active && mode !== 'none') switcher?.setAttribute('hidden', '');
 
         switcher?.querySelectorAll('[data-bg]').forEach(btn => {
             btn.setAttribute('aria-pressed', btn.dataset.bg === mode);
