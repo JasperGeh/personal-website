@@ -18,6 +18,7 @@
     --color-accent-hover: #1b5e20;
     --color-border: #d3cbb8;
     --color-card-bg: #fefbf3;
+    --color-scramble: #268bd2;
     
     /* Spacing */
     --space-xs: 0.25rem;
@@ -35,9 +36,10 @@
     --transition-base: 250ms ease;
 }
 
-/* Dark mode - Solarized dark inspired */
+/* Dark mode - Solarized dark inspired.
+   Follows the system setting unless the toggle has picked a theme. */
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
         --color-bg: #002b36;
         --color-bg-alt: #073642;
         --color-text: #fdf6e3;
@@ -46,7 +48,22 @@
         --color-accent-hover: #8fce92;
         --color-border: #094652;
         --color-card-bg: #003847;
+        --color-scramble: #2aa198;
+        color-scheme: dark;
     }
+}
+
+:root[data-theme="dark"] {
+    --color-bg: #002b36;
+    --color-bg-alt: #073642;
+    --color-text: #fdf6e3;
+    --color-text-muted: #93a1a1;
+    --color-accent: #6fbf73;
+    --color-accent-hover: #8fce92;
+    --color-border: #094652;
+    --color-card-bg: #003847;
+    --color-scramble: #2aa198;
+    color-scheme: dark;
 }
 
 /* ============================================
@@ -157,9 +174,34 @@ p {
     animation: fadeInUp 0.6s ease-out 0.15s both;
 }
 
-.pondering #rotating-text {
-    display: inline-block;
-    transition: opacity 0.3s ease;
+.scramble-char {
+    color: var(--color-scramble);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 0.9em;
+}
+
+/* Interactive hero background (clouds / agar) */
+.hero-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 520px;
+    z-index: 0;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    opacity: 0;
+    transition: opacity 1.2s ease;
+}
+
+.hero-bg.ready {
+    opacity: 1;
+}
+
+.container {
+    position: relative;
+    z-index: 1;
 }
 
 .hero-photo-container {
@@ -196,29 +238,87 @@ p {
     animation: fadeIn 0.6s ease-out 0.2s both;
 }
 
+.nav {
+    position: relative;
+    align-items: center;
+}
+
 .nav a {
     color: var(--color-text);
     font-weight: 500;
-    position: relative;
-}
-
-.nav a::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background-color: var(--color-accent);
-    transition: width var(--transition-base);
+    white-space: nowrap;
 }
 
 .nav a:hover {
     color: var(--color-accent);
 }
 
-.nav a:hover::after {
-    width: 100%;
+/* One underline that glides between links (positioned by JS) */
+.nav-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 2px;
+    width: 0;
+    background-color: var(--color-accent);
+    border-radius: 1px;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+        transform 450ms cubic-bezier(0.22, 1.4, 0.36, 1),
+        width 450ms cubic-bezier(0.22, 1.4, 0.36, 1),
+        opacity var(--transition-base);
+}
+
+.nav-indicator.ready {
+    opacity: 1;
+}
+
+/* Light/dark toggle */
+.theme-toggle {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-toggle:hover {
+    color: var(--color-accent);
+    background: var(--color-bg-alt);
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.theme-toggle svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
+    :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
+}
+
+/* Circular reveal when switching themes (View Transitions API) */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
 }
 
 /* ============================================
@@ -239,10 +339,6 @@ p {
 /* Active nav link styling */
 .nav a.active {
     color: var(--color-accent);
-}
-
-.nav a.active::after {
-    width: 100%;
 }
 
 /* About Section */
@@ -451,13 +547,62 @@ p {
     margin-top: var(--space-xl);
     padding-top: var(--space-lg);
     border-top: 1px solid var(--color-border);
-    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-md);
 }
 
 .footer p {
     font-size: 0.875rem;
     color: var(--color-text-muted);
     margin: 0;
+}
+
+/* Background switcher */
+.bg-switch {
+    display: flex;
+    gap: 2px;
+}
+
+.bg-switch[hidden],
+.bg-switch [hidden] {
+    display: none;
+}
+
+.bg-switch button {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    cursor: pointer;
+    transition: color var(--transition-fast), opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.bg-switch button:hover {
+    opacity: 1;
+    background: var(--color-bg-alt);
+}
+
+.bg-switch button[aria-pressed="true"] {
+    color: var(--color-accent);
+    opacity: 1;
+}
+
+.bg-switch button:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+}
+
+.bg-switch svg {
+    width: 0.95rem;
+    height: 0.95rem;
 }
 
 /* ============================================
@@ -548,6 +693,22 @@ p {
 }
 
 /* ============================================
+   Reduced Motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* ============================================
    Print Styles
    ============================================ */
 
@@ -564,6 +725,8 @@ p {
     }
     
     .nav,
+    .hero-bg,
+    .bg-switch,
     .social-links {
         display: none;
     }
