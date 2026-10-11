@@ -178,6 +178,8 @@ p {
 }
 
 .scramble-char {
+    /* Replaced every frame: let clicks land on the link, or they get lost */
+    pointer-events: none;
     color: var(--color-scramble);
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
     font-size: 0.9em;
