@@ -3,7 +3,8 @@
    clouds  drifting clouds that part around the cursor (default)
    agar    reaction-diffusion colonies; the cursor streaks the plate
    network an outbreak spreading over a drifting contact network
-   Switch with the footer buttons or ?bg=clouds|agar|network|none
+   New visitors get a random one; switch with the footer buttons or
+   ?bg=clouds|agar|network|none
    ============================================ */
 
 (() => {
@@ -760,6 +761,8 @@
 
                 }
 
+                drawTrace(c);
+
                 // Keep the text column calm: knock back everything behind it
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 ctx.globalAlpha = 1;
@@ -775,8 +778,6 @@
                 ctx.fillRect(0, 0, width, height);
                 ctx.globalCompositeOperation = 'source-over';
 
-                // Tracing is deliberate, so it sits above the fade at full strength
-                drawTrace(c);
             }
 
             // Contact tracing: hovering an infected or recovered node lights up
@@ -891,6 +892,10 @@
         if (btn) setMode(btn.dataset.bg);
     });
 
+    // A shared link or the visitor's own pick wins; otherwise surprise them
     const requested = new URLSearchParams(location.search).get('bg') || readSaved();
-    setMode(MODES.includes(requested) || requested === 'none' ? requested : 'clouds', { remember: false });
+    const initial = MODES.includes(requested) || requested === 'none'
+        ? requested
+        : MODES[Math.floor(Math.random() * MODES.length)];
+    setMode(initial, { remember: false });
 })();
