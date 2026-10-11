@@ -2,11 +2,12 @@
    Interactive hero background (WebGL2)
    clouds  drifting clouds that part around the cursor (default)
    agar    reaction-diffusion colonies; the cursor streaks the plate
-   Switch with the footer buttons or ?bg=clouds|agar|none
+   network an outbreak spreading over a drifting contact network
+   Switch with the footer buttons or ?bg=clouds|agar|network|none
    ============================================ */
 
 (() => {
-    const MODES = ['clouds', 'agar'];
+    const MODES = ['clouds', 'agar', 'network'];
     const switcher = document.querySelector('.bg-switch');
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const systemDark = matchMedia('(prefers-color-scheme: dark)');
@@ -18,7 +19,7 @@
         base03: hex('#002b36'), base02: hex('#073642'), base01: hex('#586e75'),
         base1: hex('#93a1a1'), base2: hex('#eee8d5'), base3: hex('#fdf6e3'),
         yellow: hex('#b58900'), orange: hex('#cb4b16'), red: hex('#dc322f'),
-        magenta: hex('#d33682'), blue: hex('#268bd2'), cyan: hex('#2aa198'), green: hex('#859900'),
+        magenta: hex('#d33682'), violet: hex('#6c71c4'), blue: hex('#268bd2'), cyan: hex('#2aa198'), green: hex('#859900'),
     };
 
     const VERT = `#version 300 es
@@ -63,11 +64,12 @@
         canvas.setAttribute('aria-hidden', 'true');
         document.body.prepend(canvas);
 
-        const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
+        // The network is plain 2D canvas; the other scenes need WebGL2
+        const gl = mode === 'network' ? null : canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
         let scene = null;
-        if (gl) {
+        if (gl || mode === 'network') {
             try {
-                scene = mode === 'agar' ? agar() : clouds();
+                scene = mode === 'agar' ? agar() : mode === 'network' ? network() : clouds();
             } catch (err) {
                 console.warn('hero background unavailable:', err);
             }
@@ -106,7 +108,7 @@
                 observer.disconnect();
                 canvas.classList.remove('ready'); // fades out via CSS
                 setTimeout(() => {
-                    gl.getExtension('WEBGL_lose_context')?.loseContext();
+                    gl?.getExtension('WEBGL_lose_context')?.loseContext();
                     canvas.remove();
                 }, 1200);
             },
@@ -510,6 +512,341 @@
                         pointer.down = false;
                     }
                     step(STEPS);
+                    draw();
+                },
+            };
+        }
+
+        /* ============================================
+           Contact network: an outbreak spreads, mutates and is traced
+           ============================================ */
+
+        function network() {
+            const ctx = canvas.getContext('2d');
+
+            const BETA = 0.28;             // transmissions per second along one contact
+            const INFECTIOUS = [3, 4.5];   // seconds
+            const IMMUNE = [14, 24];       // seconds before becoming susceptible again
+            const MUTATION = 0.1;          // chance a transmission founds a new lineage
+            const TRAVEL = 0.45;           // seconds for a transmission to cross a link
+            const TRAIL_FADE = 14;         // seconds a transmission stays drawn
+            const TRAIL_KEEP = 90;         // seconds it stays traceable
+            const TRACE_RADIUS = 18;
+            const COLUMN = 360;            // half-width of the text column
+
+            let width = 0, height = 0, contact = 110;
+            let nodes = [];
+            let packets = [];
+            const edges = new Map(); // transmission tree, by id
+            let nextEdge = 1;
+            let time = 0;
+            let nextIntroduction = 1;
+            const glows = new Map();
+
+            const rand = (a, b) => a + Math.random() * (b - a);
+            const css = c => `rgb(${c.map(v => Math.round(v * 255)).join(',')})`;
+            const STRAINS = [S.yellow, S.orange, S.red, S.magenta, S.violet];
+
+            function palette() {
+                return isDark()
+                    ? { link: mix(S.base01, S.base1, 0.3), node: mix(S.base01, S.base1, 0.6), recovered: S.cyan, trace: S.base2, linkAlpha: 0.6, glowSize: 48, glowAlpha: 0.65 }
+                    : { link: S.base1, node: mix(S.base1, S.base01, 0.4), recovered: S.cyan, trace: S.base02, linkAlpha: 0.85, glowSize: 30, glowAlpha: 0.32 };
+            }
+
+            function populate() {
+                const area = width * height * 0.8;
+                const n = Math.max(45, Math.min(300, Math.round(area / 2600)));
+                contact = Math.max(70, Math.min(100, Math.sqrt(area / n) * 1.65));
+                nodes = Array.from({ length: n }, () => ({
+                    x: rand(10, width - 10),
+                    y: rand(10, height * 0.8),
+                    heading: rand(0, Math.PI * 2),
+                    speed: rand(1, 2.8),
+                    state: 'S', timer: 0, strain: 0, edge: null, index: false,
+                }));
+                packets = [];
+                edges.clear();
+            }
+
+            function infect(node, strain, edgeId, index = false) {
+                node.state = 'I';
+                node.timer = rand(...INFECTIOUS);
+                node.strain = strain;
+                node.edge = edgeId;
+                node.index = index;
+            }
+
+            function introduce(node) {
+                if (!node) {
+                    const candidates = nodes.filter(n => n.state === 'S');
+                    node = candidates[Math.floor(Math.random() * candidates.length)];
+                }
+                if (!node || node.state !== 'S') return;
+                infect(node, Math.floor(Math.random() * STRAINS.length), null, true);
+            }
+
+            function transmit(from, to) {
+                const mutated = Math.random() < MUTATION;
+                const strain = mutated ? (from.strain + 1) % STRAINS.length : from.strain;
+                const id = nextEdge++;
+                // Not drawn until the packet arrives (born is set then)
+                edges.set(id, { from, to, parent: from.edge, rootIsIndex: from.index, strain, born: null });
+                to.state = 'E'; // exposed: waiting for the packet to arrive
+                to.strain = strain;
+                packets.push({ from, to, t: 0, strain, edge: id });
+            }
+
+            function simulate(dt) {
+                time += dt;
+
+                // Drift: a slow random walk that bounces off the banner edges
+                for (const n of nodes) {
+                    n.heading += rand(-1, 1) * dt * 0.3;
+                    n.x += Math.cos(n.heading) * n.speed * dt;
+                    n.y += Math.sin(n.heading) * n.speed * dt;
+                    if (n.x < 8 || n.x > width - 8) { n.heading = Math.PI - n.heading; n.x = Math.max(8, Math.min(width - 8, n.x)); }
+                    if (n.y < 8 || n.y > height * 0.8) { n.heading = -n.heading; n.y = Math.max(8, Math.min(height * 0.8, n.y)); }
+                }
+
+                // Spread along current contacts
+                for (const a of nodes) {
+                    if (a.state !== 'I') continue;
+                    for (const b of nodes) {
+                        if (b.state !== 'S') continue;
+                        const d = Math.hypot(a.x - b.x, a.y - b.y);
+                        if (d < contact && Math.random() < BETA * dt * (1 - d / contact * 0.5)) transmit(a, b);
+                    }
+                }
+
+                for (const p of packets) {
+                    p.t += dt / TRAVEL;
+                    if (p.t >= 1) {
+                        infect(p.to, p.strain, p.edge);
+                        edges.get(p.edge).born = time;
+                    }
+                }
+                packets = packets.filter(p => p.t < 1);
+
+                let active = 0;
+                for (const n of nodes) {
+                    if (n.state === 'I' || n.state === 'E') active++;
+                    if (n.state === 'I' && (n.timer -= dt) <= 0) {
+                        n.state = 'R';
+                        n.timer = rand(...IMMUNE);
+                    } else if (n.state === 'R' && (n.timer -= dt) <= 0) {
+                        n.state = 'S';
+                    }
+                }
+
+                for (const [id, e] of edges) if (e.born !== null && time - e.born > TRAIL_KEEP) edges.delete(id);
+
+                // New introductions: soon after an outbreak dies out, and now and
+                // then anyway so several lineages can co-circulate
+                nextIntroduction -= dt;
+                if (active === 0 && nextIntroduction > 4) nextIntroduction = rand(1.5, 4);
+                if (nextIntroduction <= 0) {
+                    introduce();
+                    nextIntroduction = rand(18, 30);
+                }
+            }
+
+            // Chain of transmissions from a node back toward patient zero
+            function traceFrom(node) {
+                const chain = [];
+                let id = node.edge;
+                let complete = node.index;
+                while (id) {
+                    const e = edges.get(id);
+                    if (!e) { complete = false; break; }
+                    chain.push(e);
+                    if (!e.parent) { complete = e.rootIsIndex; break; }
+                    id = e.parent;
+                }
+                return { chain, complete };
+            }
+
+            function glowSprite(color) {
+                const key = color.join();
+                if (!glows.has(key)) {
+                    const g = document.createElement('canvas');
+                    g.width = g.height = 64;
+                    const c = g.getContext('2d');
+                    const grad = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+                    const rgb = color.map(v => Math.round(v * 255)).join(',');
+                    for (let i = 0; i <= 8; i++) {
+                        const r = i / 8;
+                        grad.addColorStop(r, `rgba(${rgb},${(Math.exp(-r * r * 5) - Math.exp(-5)).toFixed(3)})`);
+                    }
+                    c.fillStyle = grad;
+                    c.fillRect(0, 0, 64, 64);
+                    glows.set(key, g);
+                }
+                return glows.get(key);
+            }
+
+            function draw() {
+                const c = palette();
+                const dpr = canvas.width / width;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, width, height);
+                ctx.globalCompositeOperation = 'source-over';
+
+                // Contacts
+                const BANDS = 6;
+                const bands = Array.from({ length: BANDS }, () => new Path2D());
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const a = nodes[i], b = nodes[j];
+                        const d = Math.hypot(a.x - b.x, a.y - b.y);
+                        if (d >= contact) continue;
+                        const band = bands[Math.min(BANDS - 1, Math.floor((1 - d / contact) * BANDS))];
+                        band.moveTo(a.x, a.y);
+                        band.lineTo(b.x, b.y);
+                    }
+                }
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = css(c.link);
+                bands.forEach((band, i) => {
+                    ctx.globalAlpha = ((i + 0.5) / BANDS) * c.linkAlpha;
+                    ctx.stroke(band);
+                });
+
+                // Transmission tree, fading with age
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                for (const e of edges.values()) {
+                    if (e.born === null) continue;
+                    const age = (time - e.born) / TRAIL_FADE;
+                    if (age >= 1) continue;
+                    ctx.globalAlpha = 0.85 * (1 - age) * (1 - age) * Math.min(1, (time - e.born) / 0.25);
+                    ctx.strokeStyle = css(STRAINS[e.strain]);
+                    ctx.beginPath();
+                    ctx.moveTo(e.from.x, e.from.y);
+                    ctx.lineTo(e.to.x, e.to.y);
+                    ctx.stroke();
+                }
+
+                // Transmissions in flight
+                for (const p of packets) {
+                    const x = p.from.x + (p.to.x - p.from.x) * p.t;
+                    const y = p.from.y + (p.to.y - p.from.y) * p.t;
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = css(STRAINS[p.strain]);
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Nodes
+                for (const n of nodes) {
+                    let color = c.node, r = 2.6, alpha = 0.9;
+                    if (n.state === 'I') {
+                        color = STRAINS[n.strain];
+                        r = 3.6;
+                        const pulse = 0.75 + 0.25 * Math.sin(time * 5 + n.x);
+                        ctx.globalAlpha = c.glowAlpha * pulse;
+                        ctx.drawImage(glowSprite(color), n.x - c.glowSize / 2, n.y - c.glowSize / 2, c.glowSize, c.glowSize);
+                    } else if (n.state === 'E') {
+                        color = STRAINS[n.strain] || c.node;
+                    } else if (n.state === 'R') {
+                        color = c.recovered;
+                        alpha = 0.45 + 0.4 * Math.min(1, n.timer / 6);
+                    }
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = css(color);
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                }
+
+                // Keep the text column calm: knock back everything behind it
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.globalAlpha = 1;
+                ctx.globalCompositeOperation = 'destination-out';
+                const mid = width / 2;
+                const grad = ctx.createLinearGradient(mid - COLUMN - 120, 0, mid + COLUMN + 120, 0);
+                const edge = 120 / (2 * COLUMN + 240);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(edge * 1.3, 'rgba(0,0,0,0.8)');
+                grad.addColorStop(1 - edge * 1.3, 'rgba(0,0,0,0.8)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalCompositeOperation = 'source-over';
+
+                // Tracing is deliberate, so it sits above the fade at full strength
+                drawTrace(c);
+            }
+
+            // Contact tracing: hovering an infected or recovered node lights up
+            // its chain of transmissions back to patient zero (double ring)
+            function drawTrace(c) {
+                if (!pointer.inside) return;
+                let target = null, best = TRACE_RADIUS;
+                for (const n of nodes) {
+                    if (n.state === 'S') continue;
+                    const d = Math.hypot(n.x - pointer.x, n.y - pointer.y);
+                    if (d < best && (n.edge || n.index)) { best = d; target = n; }
+                }
+                if (!target) return;
+
+                const { chain, complete } = traceFrom(target);
+                ctx.globalAlpha = 0.9;
+                ctx.strokeStyle = css(c.trace);
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.lineDashOffset = time * 24; // marching toward the source
+                ctx.beginPath();
+                for (const e of chain) {
+                    ctx.moveTo(e.to.x, e.to.y);
+                    ctx.lineTo(e.from.x, e.from.y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.lineWidth = 1.4;
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, 8, 0, Math.PI * 2);
+                ctx.stroke();
+
+                const root = chain.length ? chain[chain.length - 1].from : target;
+                if (complete) {
+                    for (const r of [7, 11]) {
+                        ctx.beginPath();
+                        ctx.arc(root.x, root.y, r, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            return {
+                resize() {
+                    const oldWidth = width;
+                    sizeCanvas(Math.min(devicePixelRatio, 2));
+                    width = canvas.clientWidth;
+                    height = canvas.clientHeight;
+                    if (Math.abs(width - oldWidth) > 1) populate();
+                },
+                still() {
+                    if (!this.settled) {
+                        for (let i = 0; i < 300; i++) simulate(1 / 30);
+                        this.settled = true;
+                    }
+                    draw();
+                },
+                frame(dt) {
+                    if (pointer.down) {
+                        // Click a node to make it patient zero of a new lineage
+                        let hit = null, best = 30;
+                        for (const n of nodes) {
+                            const d = Math.hypot(n.x - pointer.x, n.y - pointer.y);
+                            if (n.state === 'S' && d < best) { best = d; hit = n; }
+                        }
+                        if (hit) introduce(hit);
+                        pointer.down = false;
+                    }
+                    simulate(dt);
                     draw();
                 },
             };
