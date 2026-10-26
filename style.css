@@ -80,6 +80,9 @@ html {
     /* Fill the viewport so the theme-switch reveal covers short pages too */
     min-height: 100%;
     background-color: var(--color-bg);
+    /* Reserve the scrollbar's space even on short tabs, so switching
+       between short and long tabs doesn't nudge the page sideways */
+    scrollbar-gutter: stable;
 }
 
 body {
